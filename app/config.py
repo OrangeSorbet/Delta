@@ -1,0 +1,193 @@
+# utils/config.py
+# Delta — Investment Portfolio Optimizer
+# Central config, constants, and default values
+
+ASSET_METADATA = {
+    "Gold": {
+        "symbol": "XAU",
+        "emoji": "🥇",
+        "base_price_usd": 2050,
+        "color": "#D4AF37",
+        "category": "Metal",
+        "description": "The ultimate safe-haven asset. Surges during geopolitical stress and inflation.",
+    },
+    "Silver": {
+        "symbol": "XAG",
+        "emoji": "🥈",
+        "base_price_usd": 24,
+        "color": "#C0C0C0",
+        "category": "Metal",
+        "description": "Dual role as precious metal and industrial commodity. Highly sensitive to Fed policy.",
+    },
+    "Platinum": {
+        "symbol": "XPT",
+        "emoji": "⚪",
+        "base_price_usd": 960,
+        "color": "#E5E4E2",
+        "category": "Metal",
+        "description": "Rarer than gold, driven by auto industry demand and supply constraints from South Africa.",
+    },
+    "Copper": {
+        "symbol": "XCU",
+        "emoji": "🟤",
+        "base_price_usd": 8500,
+        "color": "#B87333",
+        "category": "Metal",
+        "description": "The economic bellwether. China PMI and global manufacturing drive copper prices.",
+    },
+    "Diamond": {
+        "symbol": "DIA",
+        "emoji": "💎",
+        "base_price_usd": 5500,
+        "color": "#B9F2FF",
+        "category": "Gemstone",
+        "description": "Luxury demand asset. Festival seasons and wedding intensity are key price drivers.",
+    },
+    "Emerald": {
+        "symbol": "EMR",
+        "emoji": "💚",
+        "base_price_usd": 3200,
+        "color": "#50C878",
+        "category": "Gemstone",
+        "description": "Colombian origin premium commands 30–60% price uplift. Monsoon index affects supply.",
+    },
+    "Ruby": {
+        "symbol": "RUB",
+        "emoji": "❤️",
+        "base_price_usd": 4100,
+        "color": "#E0115F",
+        "category": "Gemstone",
+        "description": "Burmese rubies are the rarest. Geopolitical tension and India wedding season are catalysts.",
+    },
+    "Pearl": {
+        "symbol": "PRL",
+        "emoji": "🫧",
+        "base_price_usd": 1800,
+        "color": "#F5F5F0",
+        "category": "Gemstone",
+        "description": "Supply-driven market. Monsoon index and Japan-India trade dynamics shape pricing.",
+    },
+}
+
+FEATURE_DEFAULTS = {
+    # India Macro
+    "USD_INR": 83.5,
+    "India_Inflation": 4.8,
+    "RBI_Repo_Rate": 6.5,
+    "Import_Duty_Gold_pct": 15.0,
+    "India_GDP_Growth": 6.8,
+    "Monsoon_Index": 97.0,
+    # Global Macro
+    "Global_Inflation": 3.5,
+    "Fed_Rate": 5.25,
+    "DXY_Index": 104.5,
+    "Oil_Price_USD": 82.0,
+    "SP500_Index": 5200.0,
+    "China_PMI": 50.2,
+    "Geopolitical_Risk_VIX": 18.0,
+    "Russia_Ukraine_Tension": 0.6,
+    # Supply
+    "Global_Mining_Output_Index": 98.5,
+    "Lab_Diamond_Supply_Index": 112.0,
+    "Emerald_Origin_Premium_pct": 42.0,
+    "Diamond_Demand_Index": 104.0,
+    # Demand signals
+    "Festival_Season": 0,
+    "Festival_Intensity": 0.0,
+    "Wedding_Season_Intensity": 0.5,
+    "Is_Weekend": 0,
+    "Quarter": 2,
+    # Asset price defaults (USD or index)
+    "Gold_Price_USD": 2050.0,
+    "Gold_Volume": 52000,
+    "Silver_Price_USD": 24.5,
+    "Silver_Volume": 210000,
+    "Platinum_Price_USD": 960.0,
+    "Platinum_Volume": 8200,
+    "Copper_Price_USD": 8500.0,
+    "Copper_Volume": 510000,
+    "Diamond_Index": 5500.0,
+    "Diamond_Volume": 2100,
+    "Emerald_Index": 3200.0,
+    "Emerald_Volume": 820,
+    "Ruby_Index": 4100.0,
+    "Ruby_Volume": 620,
+    "Pearl_Index": 1800.0,
+    "Pearl_Volume": 1550,
+}
+
+FEATURE_RANGES = {
+    "USD_INR":                  (65.0,  90.0),
+    "India_Inflation":          (2.0,   10.0),
+    "RBI_Repo_Rate":            (3.5,   8.0),
+    "Import_Duty_Gold_pct":     (5.0,   20.0),
+    "India_GDP_Growth":         (-8.0,  10.0),
+    "Monsoon_Index":            (60.0,  120.0),
+    "Global_Inflation":         (0.5,   12.0),
+    "Fed_Rate":                 (0.0,   6.0),
+    "DXY_Index":                (85.0,  115.0),
+    "Oil_Price_USD":            (30.0,  130.0),
+    "SP500_Index":              (2500.0, 5500.0),
+    "China_PMI":                (44.0,  56.0),
+    "Geopolitical_Risk_VIX":    (10.0,  80.0),
+    "Russia_Ukraine_Tension":   (0.0,   1.0),
+    "Global_Mining_Output_Index": (80.0, 115.0),
+    "Lab_Diamond_Supply_Index": (80.0,  140.0),
+    "Emerald_Origin_Premium_pct": (10.0, 80.0),
+    "Diamond_Demand_Index":     (80.0,  130.0),
+    "Gold_Price_USD":           (1200.0, 2500.0),
+    "Silver_Price_USD":         (12.0,  35.0),
+    "Platinum_Price_USD":       (600.0, 1400.0),
+    "Copper_Price_USD":         (5000.0, 12000.0),
+    "Diamond_Index":            (3000.0, 9000.0),
+    "Emerald_Index":            (1500.0, 6000.0),
+    "Ruby_Index":               (2000.0, 7000.0),
+    "Pearl_Index":              (800.0,  3500.0),
+}
+
+FEATURE_LABELS = {
+    "USD_INR":                    "USD / INR Exchange Rate",
+    "India_Inflation":            "India Inflation (%)",
+    "RBI_Repo_Rate":              "RBI Repo Rate (%)",
+    "Import_Duty_Gold_pct":       "Gold Import Duty (%)",
+    "India_GDP_Growth":           "India GDP Growth (%)",
+    "Monsoon_Index":              "Monsoon Index",
+    "Global_Inflation":           "Global Inflation (%)",
+    "Fed_Rate":                   "US Fed Rate (%)",
+    "DXY_Index":                  "US Dollar Index (DXY)",
+    "Oil_Price_USD":              "Crude Oil Price (USD/bbl)",
+    "SP500_Index":                "S&P 500 Index",
+    "China_PMI":                  "China Manufacturing PMI",
+    "Geopolitical_Risk_VIX":      "VIX (Fear Index)",
+    "Russia_Ukraine_Tension":     "Geopolitical Tension (0–1)",
+    "Global_Mining_Output_Index": "Global Mining Output Index",
+    "Lab_Diamond_Supply_Index":   "Lab Diamond Supply Index",
+    "Emerald_Origin_Premium_pct": "Emerald Origin Premium (%)",
+    "Diamond_Demand_Index":       "Diamond Demand Index",
+    "Gold_Price_USD":             "Gold Spot Price (USD/oz)",
+    "Silver_Price_USD":           "Silver Spot Price (USD/oz)",
+    "Platinum_Price_USD":         "Platinum Spot Price (USD/oz)",
+    "Copper_Price_USD":           "Copper Price (USD/MT)",
+    "Diamond_Index":              "Diamond Index (USD)",
+    "Emerald_Index":              "Emerald Index (USD)",
+    "Ruby_Index":                 "Ruby Index (USD)",
+    "Pearl_Index":                "Pearl Index (USD)",
+}
+
+RISK_COLORS = {
+    "Low":    "#22c55e",
+    "Medium": "#f59e0b",
+    "High":   "#ef4444",
+}
+
+RISK_ICONS = {
+    "Low":    "🟢",
+    "Medium": "🟡",
+    "High":   "🔴",
+}
+
+RISK_ACTIONS = {
+    "Low":    "BUY",
+    "Medium": "HOLD",
+    "High":   "SELL / AVOID",
+}

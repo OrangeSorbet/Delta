@@ -1,0 +1,385 @@
+/* components/styles.css - Delta App Theme */
+
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&display=swap');
+
+:root {
+    --bg-base:        #07080f;
+    --bg-card:        rgba(255,255,255,0.04);
+    --bg-card-hover:  rgba(255,255,255,0.07);
+    --border:         rgba(255,255,255,0.08);
+    --border-gold:    rgba(212,175,55,0.35);
+    --gold:           #D4AF37;
+    --gold-light:     #F0D060;
+    --gold-dim:       rgba(212,175,55,0.15);
+    --text-primary:   #F0EDE8;
+    --text-secondary: rgba(240,237,232,0.55);
+    --text-dim:       rgba(240,237,232,0.30);
+    --green:          #22c55e;
+    --amber:          #f59e0b;
+    --red:            #ef4444;
+    --blur:           blur(16px);
+}
+
+/* ── Base ── */
+html, body, [data-testid="stAppViewContainer"] {
+    background: var(--bg-base) !important;
+    font-family: 'DM Sans', sans-serif !important;
+    color: var(--text-primary) !important;
+}
+
+[data-testid="stAppViewContainer"] {
+    background:
+        radial-gradient(ellipse 80% 50% at 20% 0%, rgba(212,175,55,0.06) 0%, transparent 60%),
+        radial-gradient(ellipse 60% 40% at 80% 100%, rgba(99,102,241,0.05) 0%, transparent 60%),
+        var(--bg-base) !important;
+}
+
+/* Hide default Streamlit elements */
+[data-testid="stSidebar"] { display: none !important; }
+header[data-testid="stHeader"] { display: none !important; }
+footer { display: none !important; }
+#MainMenu { display: none !important; }
+[data-testid="stDecoration"] { display: none !important; }
+[data-testid="stToolbar"] { display: none !important; }
+
+/* ── Main content padding ── */
+[data-testid="stMain"] > div:first-child {
+    padding-top: 0 !important;
+}
+.block-container {
+    padding: 0 2rem 3rem 2rem !important;
+    max-width: 1400px !important;
+}
+
+/* ── Typography ── */
+h1, h2, h3, h4, h5, h6 {
+    font-family: 'Syne', sans-serif !important;
+    color: var(--text-primary) !important;
+}
+
+/* ── Glass Card ── */
+.glass-card {
+    background: var(--bg-card);
+    backdrop-filter: var(--blur);
+    -webkit-backdrop-filter: var(--blur);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 1.5rem;
+    transition: border-color 0.2s, background 0.2s;
+}
+.glass-card:hover {
+    background: var(--bg-card-hover);
+    border-color: rgba(255,255,255,0.12);
+}
+.glass-card-gold {
+    border-color: var(--border-gold);
+    background: linear-gradient(135deg, rgba(212,175,55,0.06) 0%, var(--bg-card) 60%);
+}
+
+/* ── Navbar ── */
+.delta-navbar {
+    position: sticky;
+    top: 0;
+    z-index: 999;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.9rem 2rem;
+    background: rgba(7,8,15,0.85);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--border);
+    margin: 0 -2rem 2rem -2rem;
+}
+.delta-logo {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+}
+.delta-logo-mark {
+    width: 36px; height: 36px;
+    background: linear-gradient(135deg, #D4AF37 0%, #F0D060 50%, #B8960C 100%);
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Syne', sans-serif;
+    font-weight: 800;
+    font-size: 18px;
+    color: #07080f;
+    box-shadow: 0 4px 20px rgba(212,175,55,0.4);
+}
+.delta-logo-text {
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 1.35rem;
+    letter-spacing: 0.06em;
+    background: linear-gradient(90deg, #D4AF37, #F0D060);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+.delta-logo-sub {
+    font-size: 0.65rem;
+    color: var(--text-dim);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-top: -2px;
+}
+.navbar-nav {
+    display: flex;
+    gap: 0.25rem;
+    align-items: center;
+}
+.navbar-badge {
+    font-size: 0.7rem;
+    padding: 0.15rem 0.5rem;
+    background: var(--gold-dim);
+    border: 1px solid var(--border-gold);
+    border-radius: 20px;
+    color: var(--gold);
+    font-family: 'Syne', sans-serif;
+    letter-spacing: 0.08em;
+}
+
+/* ── Sidebar Drawer ── */
+.delta-drawer {
+    position: fixed;
+    top: 0; left: 0;
+    width: 280px;
+    height: 100vh;
+    background: rgba(10,11,20,0.97);
+    backdrop-filter: blur(30px);
+    -webkit-backdrop-filter: blur(30px);
+    border-right: 1px solid var(--border);
+    z-index: 1000;
+    transform: translateX(-100%);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    padding: 1.5rem;
+    overflow-y: auto;
+}
+.delta-drawer.open {
+    transform: translateX(0);
+}
+.drawer-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 999;
+    display: none;
+}
+.drawer-overlay.open { display: block; }
+.drawer-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;
+    border-radius: 10px;
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-bottom: 0.25rem;
+    text-decoration: none;
+}
+.drawer-menu-item:hover, .drawer-menu-item.active {
+    background: var(--gold-dim);
+    color: var(--gold);
+}
+.drawer-section-label {
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--text-dim);
+    padding: 1rem 1rem 0.4rem;
+    font-family: 'Syne', sans-serif;
+}
+.hamburger-btn {
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.4rem 0.6rem;
+    cursor: pointer;
+    color: var(--text-secondary);
+    font-size: 1.1rem;
+    transition: all 0.2s;
+    line-height: 1;
+}
+.hamburger-btn:hover {
+    border-color: var(--border-gold);
+    color: var(--gold);
+}
+
+/* ── Risk Badge ── */
+.risk-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.3rem 0.85rem;
+    border-radius: 20px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    font-family: 'Syne', sans-serif;
+    letter-spacing: 0.06em;
+}
+.risk-low    { background: rgba(34,197,94,0.15);  color: #22c55e; border: 1px solid rgba(34,197,94,0.3); }
+.risk-medium { background: rgba(245,158,11,0.15); color: #f59e0b; border: 1px solid rgba(245,158,11,0.3); }
+.risk-high   { background: rgba(239,68,68,0.15);  color: #ef4444; border: 1px solid rgba(239,68,68,0.3); }
+
+/* ── Action Badge ── */
+.action-buy   { background: rgba(34,197,94,0.12);  color: #22c55e;  border: 1px solid rgba(34,197,94,0.25);  border-radius: 6px; padding: 0.2rem 0.6rem; font-size: 0.75rem; font-weight: 700; letter-spacing: 0.05em; }
+.action-hold  { background: rgba(245,158,11,0.12); color: #f59e0b; border: 1px solid rgba(245,158,11,0.25); border-radius: 6px; padding: 0.2rem 0.6rem; font-size: 0.75rem; font-weight: 700; letter-spacing: 0.05em; }
+.action-sell  { background: rgba(239,68,68,0.12);  color: #ef4444;  border: 1px solid rgba(239,68,68,0.25);  border-radius: 6px; padding: 0.2rem 0.6rem; font-size: 0.75rem; font-weight: 700; letter-spacing: 0.05em; }
+
+/* ── Metric Card ── */
+.metric-card {
+    background: var(--bg-card);
+    backdrop-filter: var(--blur);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 1.2rem 1.4rem;
+}
+.metric-label {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text-dim);
+    margin-bottom: 0.4rem;
+    font-family: 'Syne', sans-serif;
+}
+.metric-value {
+    font-family: 'Syne', sans-serif;
+    font-size: 1.7rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    line-height: 1.1;
+}
+.metric-sub {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    margin-top: 0.3rem;
+}
+
+/* ── Section Header ── */
+.section-header {
+    margin: 2.5rem 0 1.2rem 0;
+}
+.section-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+.section-subtitle {
+    font-size: 0.82rem;
+    color: var(--text-secondary);
+    margin-top: 0.25rem;
+    max-width: 600px;
+}
+.gold-line {
+    width: 40px; height: 2px;
+    background: linear-gradient(90deg, #D4AF37, transparent);
+    margin: 0.5rem 0 0 0;
+    border-radius: 2px;
+}
+
+/* ── Streamlit widget overrides ── */
+.stSlider > div > div { color: var(--gold) !important; }
+.stSlider [data-baseweb="slider"] { padding: 0 !important; }
+
+div[data-testid="stSelectbox"] > div,
+div[data-testid="stMultiSelect"] > div {
+    background: rgba(255,255,255,0.04) !important;
+    border: 1px solid var(--border) !important;
+    border-radius: 10px !important;
+    color: var(--text-primary) !important;
+}
+div[data-testid="stDateInput"] > div > div {
+    background: rgba(255,255,255,0.04) !important;
+    border: 1px solid var(--border) !important;
+    border-radius: 10px !important;
+}
+
+/* Number input */
+div[data-testid="stNumberInput"] > div {
+    background: rgba(255,255,255,0.04) !important;
+    border: 1px solid var(--border) !important;
+    border-radius: 10px !important;
+}
+
+/* Primary button */
+.stButton > button[kind="primary"] {
+    background: linear-gradient(135deg, #D4AF37 0%, #F0D060 50%, #B8960C 100%) !important;
+    color: #07080f !important;
+    border: none !important;
+    border-radius: 10px !important;
+    font-family: 'Syne', sans-serif !important;
+    font-weight: 700 !important;
+    letter-spacing: 0.06em !important;
+    padding: 0.65rem 2rem !important;
+    box-shadow: 0 4px 20px rgba(212,175,55,0.3) !important;
+    transition: all 0.2s !important;
+}
+.stButton > button[kind="primary"]:hover {
+    box-shadow: 0 6px 28px rgba(212,175,55,0.5) !important;
+    transform: translateY(-1px) !important;
+}
+.stButton > button[kind="secondary"] {
+    background: rgba(255,255,255,0.04) !important;
+    color: var(--text-secondary) !important;
+    border: 1px solid var(--border) !important;
+    border-radius: 10px !important;
+    font-family: 'Syne', sans-serif !important;
+    font-weight: 500 !important;
+}
+
+/* Tabs */
+[data-testid="stTabs"] [role="tablist"] {
+    background: var(--bg-card) !important;
+    border-radius: 12px !important;
+    padding: 0.3rem !important;
+    border: 1px solid var(--border) !important;
+    gap: 0.25rem !important;
+}
+[data-testid="stTabs"] button[role="tab"] {
+    border-radius: 8px !important;
+    color: var(--text-secondary) !important;
+    font-family: 'Syne', sans-serif !important;
+    font-size: 0.82rem !important;
+    padding: 0.45rem 1rem !important;
+}
+[data-testid="stTabs"] button[role="tab"][aria-selected="true"] {
+    background: var(--gold-dim) !important;
+    color: var(--gold) !important;
+}
+
+/* Expander */
+[data-testid="stExpander"] {
+    background: var(--bg-card) !important;
+    border: 1px solid var(--border) !important;
+    border-radius: 12px !important;
+}
+[data-testid="stExpander"] summary {
+    color: var(--text-secondary) !important;
+    font-family: 'Syne', sans-serif !important;
+    font-size: 0.85rem !important;
+}
+
+/* Divider */
+hr { border-color: var(--border) !important; }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(212,175,55,0.2); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(212,175,55,0.4); }
+
+/* Plotly chart bg transparency */
+.js-plotly-plot .plotly .main-svg { background: transparent !important; }
+
+/* Spinner */
+.stSpinner > div { border-top-color: var(--gold) !important; }
+
+/* Alert */
+[data-testid="stAlert"] {
+    background: rgba(212,175,55,0.07) !important;
+    border: 1px solid var(--border-gold) !important;
+    border-radius: 10px !important;
+    color: var(--text-primary) !important;
+}
