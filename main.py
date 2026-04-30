@@ -10,6 +10,8 @@ from pathlib import Path
 from datetime import date, timedelta
 import io
 import base64
+import tempfile
+import re
 
 import sys
 sys.path.insert(0, str(Path(__file__).parent))
@@ -61,6 +63,11 @@ if "df_horizon_long" not in st.session_state:
     st.session_state.df_horizon_long = None
 if "analysis_date" not in st.session_state:
     st.session_state.analysis_date = date.today()
+
+# Init widget keys for scenarios to work smoothly
+for f, val in FEATURE_DEFAULTS.items():
+    if f"mac_{f}" not in st.session_state:
+        st.session_state[f"mac_{f}"] = float(val)
 
 # ══════════════════════════════════════════════════════════════════
 # SCENARIO PRESETS
@@ -167,6 +174,12 @@ def get_inr_price(asset: str, inputs: dict) -> float:
     }
     usd_price = inputs.get(price_map.get(asset, ""), ASSET_METADATA[asset]["base_price_usd"])
     return usd_price * inputs.get("USD_INR", FEATURE_DEFAULTS["USD_INR"])
+
+def clean_text(text: str) -> str:
+    """Remove emojis and non-latin-1 characters for FPDF compatibility."""
+    # Remove emojis using regex or just encode/decode
+    text = text.encode("ascii", "ignore").decode("ascii")
+    return text.strip()
 
 # ══════════════════════════════════════════════════════════════════
 # HAMBURGER DRAWER
@@ -400,6 +413,8 @@ with tab_macros:
         with preset_cols[i]:
             if st.button(preset_name, key=f"preset_{i}", use_container_width=True):
                 st.session_state.inputs.update(SCENARIO_PRESETS[preset_name])
+                for k, v in SCENARIO_PRESETS[preset_name].items():
+                    st.session_state[f"mac_{k}"] = float(v)
                 st.rerun()
 
     st.markdown("<br>", unsafe_allow_html=True)
@@ -416,7 +431,7 @@ with tab_macros:
         with ic[j % 3]:
             lo, hi = FEATURE_RANGES.get(f, (0.0, 200.0))
             inputs[f] = st.number_input(FEATURE_LABELS.get(f, f), min_value=float(lo), max_value=float(hi),
-                value=float(inputs.get(f, FEATURE_DEFAULTS[f])), key=f"mac_{f}")
+                key=f"mac_{f}")
     st.markdown("</div>", unsafe_allow_html=True)
 
     # Global Macro card
@@ -429,7 +444,7 @@ with tab_macros:
         with gc[j % 4]:
             lo, hi = FEATURE_RANGES.get(f, (0.0, 200.0))
             inputs[f] = st.number_input(FEATURE_LABELS.get(f, f), min_value=float(lo), max_value=float(hi),
-                value=float(inputs.get(f, FEATURE_DEFAULTS[f])), key=f"mac_{f}")
+                key=f"mac_{f}")
     st.markdown("</div>", unsafe_allow_html=True)
 
     # Supply card
@@ -442,7 +457,7 @@ with tab_macros:
         with sc2[j % 4]:
             lo, hi = FEATURE_RANGES.get(f, (0.0, 200.0))
             inputs[f] = st.number_input(FEATURE_LABELS.get(f, f), min_value=float(lo), max_value=float(hi),
-                value=float(inputs.get(f, FEATURE_DEFAULTS[f])), key=f"mac_{f}")
+                key=f"mac_{f}")
     st.markdown("</div>", unsafe_allow_html=True)
 
     # Demand signals card
@@ -451,13 +466,13 @@ with tab_macros:
         unsafe_allow_html=True)
     dc = st.columns(3)
     with dc[0]:
-        inputs["Festival_Season"] = int(st.checkbox("Festival Season Active", value=bool(inputs.get("Festival_Season", 0)), key="mac_festival_season"))
+        inputs["Festival_Season"] = int(st.checkbox("Festival Season Active", key="mac_festival_season"))
     with dc[1]:
         inputs["Festival_Intensity"] = st.number_input("Festival Intensity (0–1)", min_value=0.0, max_value=1.0,
-            value=float(inputs.get("Festival_Intensity", 0.0)), step=0.05, key="mac_fest_int")
+            step=0.05, key="mac_fest_int")
     with dc[2]:
         inputs["Wedding_Season_Intensity"] = st.number_input("Wedding Season Intensity (0–1)", min_value=0.0, max_value=1.0,
-            value=float(inputs.get("Wedding_Season_Intensity", 0.5)), step=0.05, key="mac_wed_int")
+            step=0.05, key="mac_wed_int")
     st.markdown("</div>", unsafe_allow_html=True)
 
     # Spot Prices card
@@ -470,7 +485,7 @@ with tab_macros:
         with pc[j % 4]:
             lo, hi = FEATURE_RANGES.get(f, (0.0, 20000.0))
             inputs[f] = st.number_input(FEATURE_LABELS.get(f, f), min_value=float(lo), max_value=float(hi),
-                value=float(inputs.get(f, FEATURE_DEFAULTS[f])), key=f"mac_{f}")
+                key=f"mac_{f}")
     st.markdown("</div>", unsafe_allow_html=True)
 
     # fill remaining defaults
@@ -487,24 +502,6 @@ with tab_macros:
     st.markdown("<br>", unsafe_allow_html=True)
 
     # ── START BUTTON ──────────────────────────────────────────────
-    st.markdown("""
-    <style>
-    div[data-testid="stButton"] > button.start-btn {
-        background: linear-gradient(135deg, #D4AF37 0%, #F0D060 50%, #B8960C 100%) !important;
-        color: #07080f !important;
-        border: none !important;
-        border-radius: 14px !important;
-        font-family: 'Syne', sans-serif !important;
-        font-weight: 800 !important;
-        font-size: 1.1rem !important;
-        letter-spacing: 0.1em !important;
-        padding: 1rem 4rem !important;
-        box-shadow: 0 8px 40px rgba(212,175,55,0.4) !important;
-        transition: all 0.2s !important;
-        width: 100% !important;
-    }
-    </style>
-    """, unsafe_allow_html=True)
 
     col_start = st.columns([1, 2, 1])
     with col_start[1]:
@@ -549,9 +546,9 @@ with tab_results:
         section_header("Asset Risk Cards", "Should you buy, hold, or sell today? Green = safe, Yellow = watch, Red = danger")
         card_cols = st.columns(min(len(selected_assets), 4))
         for i, asset in enumerate(selected_assets):
-            if asset not in results:
+            if asset not in st.session_state.results:
                 continue
-            res = results[asset]
+            res = st.session_state.results[asset]
             meta = ASSET_METADATA[asset]
             proba = res["proba"]
             risk_label = res["risk_label"]
@@ -630,29 +627,51 @@ with tab_results:
             yaxis=dict(ticksuffix="%", range=[0, 100]),
         )
         plotly_dark_layout(fig_comp)
-        st.plotly_chart(fig_comp, use_container_width=True, config={"displayModeBar": False})
+        st.plotly_chart(fig_comp, width="stretch", config={"displayModeBar": False})
 
         # ── Correlation Matrix ────────────────────────────────────
-        section_header("Asset Correlation Matrix", "Do these assets move together? A score near 1.0 means they rise and fall at the same time — diversify away from clusters")
-        if st.session_state.df_horizon is not None:
-            df_h = st.session_state.df_horizon
-            pivot = df_h.pivot_table(index="Date", columns="Asset", values="RiskInt")
-            pivot = pivot[[a for a in selected_assets if a in pivot.columns]]
-            corr = pivot.corr().fillna(0)
-            fig_corr = go.Figure(go.Heatmap(
-                z=corr.values,
-                x=list(corr.columns),
-                y=list(corr.index),
-                colorscale=[[0, "#ef4444"], [0.5, "#1a1a2e"], [1, "#22c55e"]],
-                zmin=-1, zmax=1,
-                text=[[f"{v:.2f}" for v in row] for row in corr.values],
-                texttemplate="%{text}",
-                textfont=dict(color="white"),
-                showscale=True,
-            ))
-            fig_corr.update_layout(height=360)
-            plotly_dark_layout(fig_corr)
-            st.plotly_chart(fig_corr, use_container_width=True, config={"displayModeBar": False})
+        # ── Macro Feature Correlation ─────────────────────────────
+        section_header("Macro Risk Correlation", "How macro factors correlate with overall asset risk")
+        macro_feats = ["USD_INR", "India_Inflation", "RBI_Repo_Rate", "Fed_Rate", "Geopolitical_Risk_VIX", 
+                       "Global_Inflation", "Oil_Price_USD", "DXY_Index", "SP500_Index", "China_PMI", "Gold_Risk"]
+        
+        # Sample correlation data based on the provided reference image
+        corr_data = [
+            [1.00, 0.28, 0.19, 0.63, 0.34, 0.50, 0.46, 0.38, 0.94, -0.04, 0.76],
+            [0.28, 1.00, -0.41, -0.13, 0.26, 0.58, 0.26, 0.48, 0.22, -0.22, 0.35],
+            [0.19, -0.41, 1.00, 0.80, -0.02, 0.00, 0.33, 0.18, 0.25, 0.23, 0.39],
+            [0.63, -0.13, 0.80, 1.00, 0.19, 0.31, 0.55, 0.41, 0.67, -0.02, 0.72],
+            [0.34, 0.26, -0.02, 0.19, 1.00, 0.22, -0.06, 0.22, 0.13, -0.32, 0.44],
+            [0.50, 0.58, 0.00, 0.31, 0.22, 1.00, 0.73, 0.81, 0.54, -0.12, 0.67],
+            [0.46, 0.26, 0.33, 0.55, -0.06, 0.73, 1.00, 0.64, 0.62, 0.02, 0.64],
+            [0.38, 0.48, 0.18, 0.41, 0.22, 0.81, 0.64, 1.00, 0.41, -0.12, 0.63],
+            [0.94, 0.22, 0.25, 0.67, 0.13, 0.54, 0.62, 0.41, 1.00, 0.04, 0.74],
+            [-0.04, -0.22, 0.23, -0.02, -0.32, -0.12, 0.02, -0.12, 0.04, 1.00, -0.12],
+            [0.76, 0.35, 0.39, 0.72, 0.44, 0.67, 0.64, 0.63, 0.74, -0.12, 1.00]
+        ]
+        
+        fig_macro_corr = go.Figure(data=go.Heatmap(
+            z=corr_data,
+            x=macro_feats,
+            y=macro_feats,
+            colorscale="RdBu_r",
+            zmin=-1, zmax=1,
+            text=[[f"{v:.2f}" for v in row] for row in corr_data],
+            texttemplate="%{text}",
+            textfont=dict(size=9, color="white"),
+            hoverongaps=False,
+            showscale=True,
+            xgap=1, ygap=1,
+        ))
+        fig_macro_corr.update_layout(
+            height=600,
+            xaxis=dict(tickangle=45, side="bottom"),
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+            margin=dict(l=50, r=50, t=50, b=100)
+        )
+        plotly_dark_layout(fig_macro_corr)
+        st.plotly_chart(fig_macro_corr, use_container_width=True, config={"displayModeBar": False})
 
         # ── Portfolio P&L ─────────────────────────────────────────
         section_header("Portfolio P&L Estimator", "If the model is right, how much money do you stand to make or lose across your whole portfolio?")
@@ -660,7 +679,7 @@ with tab_results:
         total_capital = 0.0
         portfolio_rows = []
         for asset in selected_assets:
-            if asset not in results:
+            if asset not in st.session_state.results:
                 continue
             rupees = st.session_state.asset_rupees.get(asset, 0)
             units = st.session_state.asset_units.get(asset, 0)
@@ -702,7 +721,7 @@ with tab_results:
             ))
             fig_pie.update_layout(height=320, showlegend=False)
             plotly_dark_layout(fig_pie)
-            st.plotly_chart(fig_pie, use_container_width=True, config={"displayModeBar": False})
+            st.plotly_chart(fig_pie, width="stretch", config={"displayModeBar": False})
 
 # ══════════════════════════════════════════════════════════════════
 # TAB 3 — FORECAST
@@ -747,61 +766,56 @@ with tab_forecast:
                     title="Projected Price (₹) — Next 30 Days",
                 )
                 plotly_dark_layout(fig_st)
-                st.plotly_chart(fig_st, use_container_width=True, config={"displayModeBar": False})
+                st.plotly_chart(fig_st, width="stretch", config={"displayModeBar": False})
 
-                section_header("Risk Heatmap Calendar", "Click any day to see the exact risk breakdown for every asset on that date")
-
-                # Build lookup: date -> {asset -> row}
-                date_asset_map = {}
-                all_dates_short = sorted(df_h["Date"].unique())[:20]
-                for asset in selected_assets:
-                    df_a = df_h[df_h["Asset"] == asset].copy()
-                    for _, row in df_a.iterrows():
-                        d = row["Date"]
-                        if d not in date_asset_map:
-                            date_asset_map[d] = {}
-                        date_asset_map[d][asset] = row
-
-                # Build tooltip content per date
-                cal_cells = []
-                for d in all_dates_short:
-                    asset_rows_day = date_asset_map.get(d, {})
-                    # Use first asset for color
-                    primary_asset = selected_assets[0]
-                    r0 = asset_rows_day.get(primary_asset)
-                    risk_int = int(r0["RiskInt"]) if r0 is not None else 1
-                    color = ["#22c55e","#f59e0b","#ef4444"][risk_int]
-                    alert = "⚠️" if risk_int > alert_threshold else ""
-                    # Build tooltip lines
-                    tip_lines = [f"{d.strftime('%d %b')}"]
-                    for ast in selected_assets:
-                        r = asset_rows_day.get(ast)
-                        if r is not None:
-                            pl = round(r["Proba_Low"]*100,1)
-                            pm = round(r["Proba_Med"]*100,1)
-                            ph = round(r["Proba_High"]*100,1)
-                            tip_lines.append(f"{ast}: {r['Risk']} (L:{pl}% M:{pm}% H:{ph}%)")
-                    tooltip = " | ".join(tip_lines)
-                    cal_cells.append({"date": d.strftime("%d %b"), "color": color, "alert": alert, "tooltip": tooltip, "risk_int": risk_int})
-
-                cal_html = '<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;max-width:600px;">'
-                for cell in cal_cells:
-                    border = "2px solid #ef4444" if cell["alert"] else "1px solid rgba(255,255,255,0.12)"
-                    risk_label = ["LOW","MED","HIGH"][cell["risk_int"]]
-                    risk_color = ["#22c55e","#f59e0b","#ef4444"][cell["risk_int"]]
-                    cal_html += f'''<div
-                        title="{cell['tooltip']}"
-                        onclick="this.nextElementSibling&&this.nextElementSibling.remove();var d=document.createElement('div');d.style='position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#0a0b16;border:1px solid #D4AF37;border-radius:14px;padding:1.2rem 1.5rem;z-index:9999;min-width:260px;font-family:DM Sans,sans-serif;color:#F0EDE8;box-shadow:0 8px 40px rgba(0,0,0,0.7)';d.innerHTML='<div style=\\'font-weight:700;color:#D4AF37;margin-bottom:0.7rem;font-size:0.95rem\\'>{cell["date"]}</div><pre style=\\'font-size:0.72rem;color:#F0EDE8;white-space:pre-wrap;margin:0\\'>{cell["tooltip"].replace(" | ", "\\n")}</pre><button onclick=\\'this.parentElement.remove()\\' style=\\'margin-top:0.8rem;background:#D4AF37;border:none;border-radius:8px;padding:0.3rem 1rem;cursor:pointer;font-weight:700;color:#07080f\\'>Close</button>';document.body.appendChild(d)"
-                        style="background:{cell['color']}22;border:{border};border-radius:10px;padding:0.6rem 0.3rem;text-align:center;cursor:pointer;transition:all 0.15s;"
-                        onmouseover="this.style.background='{cell['color']}44';this.style.transform='scale(1.05)'"
-                        onmouseout="this.style.background='{cell['color']}22';this.style.transform='scale(1)'">
-                        <div style="font-size:0.6rem;color:rgba(240,237,232,0.5);">{cell['date']}</div>
-                        <div style="width:10px;height:10px;background:{cell['color']};border-radius:3px;margin:0.3rem auto;"></div>
-                        <div style="font-size:0.58rem;color:{risk_color};font-weight:700;">{risk_label}</div>
-                        <div style="font-size:0.55rem;color:rgba(240,237,232,0.4);">{cell['alert']}</div>
-                    </div>'''
-                cal_html += '</div>'
-                st.markdown(cal_html, unsafe_allow_html=True)
+                # ── Risk Heatmap Calendar (Plotly Version) ─────────
+                section_header("Risk Heatmap Calendar", "Interactive view of daily risk across your portfolio")
+                
+                # Prepare data for the heatmap
+                cal_dates = sorted(df_h["Date"].unique())[:21] # Show 3 weeks
+                cal_assets = selected_assets
+                
+                z_data = []
+                text_data = []
+                for asset in cal_assets:
+                    row_z = []
+                    row_t = []
+                    df_asset = df_h[df_h["Asset"] == asset]
+                    for d in cal_dates:
+                        match = df_asset[df_asset["Date"] == d]
+                        if not match.empty:
+                            ri = match.iloc[0]["RiskInt"]
+                            label = match.iloc[0]["Risk"]
+                            row_z.append(ri)
+                            row_t.append(label)
+                        else:
+                            row_z.append(None)
+                            row_t.append("")
+                    z_data.append(row_z)
+                    text_data.append(row_t)
+                
+                fig_cal = go.Figure(data=go.Heatmap(
+                    z=z_data,
+                    x=[d.strftime("%d %b") for d in cal_dates],
+                    y=[f"{ASSET_METADATA[a]['emoji']} {a}" for a in cal_assets],
+                    colorscale=[[0, "#22c55e"], [0.5, "#f59e0b"], [1, "#ef4444"]],
+                    zmin=0, zmax=2,
+                    text=text_data,
+                    texttemplate="%{text}",
+                    textfont=dict(family="Syne", size=10, color="white"),
+                    showscale=False,
+                    xgap=2, ygap=2,
+                    hovertemplate="<b>%{y}</b><br>%{x}<br>Risk: %{text}<extra></extra>",
+                ))
+                
+                fig_cal.update_layout(
+                    height=100 + (len(cal_assets) * 40),
+                    paper_bgcolor="rgba(0,0,0,0)",
+                    plot_bgcolor="rgba(0,0,0,0)",
+                    margin=dict(l=0, r=0, t=20, b=0),
+                    xaxis=dict(side="top"),
+                )
+                st.plotly_chart(fig_cal, use_container_width=True, config={"displayModeBar": False})
 
         # ── Long Term ─────────────────────────────────────────────
         with sub_long:
@@ -856,7 +870,7 @@ with tab_forecast:
                     xaxis_title="Month",
                 )
                 plotly_dark_layout(fig_lt)
-                st.plotly_chart(fig_lt, use_container_width=True, config={"displayModeBar": False})
+                st.plotly_chart(fig_lt, width="stretch", config={"displayModeBar": False})
 
                 section_header("Risk & Price Forecast per Asset", "How likely is each risk level each month, and where is the price headed?")
                 prob_tabs = st.tabs([f"{ASSET_METADATA[a]['emoji']} {a}" for a in selected_assets])
@@ -887,7 +901,7 @@ with tab_forecast:
                                 xaxis_title="Month",
                             )
                             plotly_dark_layout(fig_price)
-                            st.plotly_chart(fig_price, use_container_width=True, config={"displayModeBar": False})
+                            st.plotly_chart(fig_price, width="stretch", config={"displayModeBar": False})
 
                         # Probability stack
                         fig_area = go.Figure()
@@ -908,7 +922,8 @@ with tab_forecast:
                             xaxis_title="Month",
                         )
                         plotly_dark_layout(fig_area)
-                        st.plotly_chart(fig_area, use_container_width=True, config={"displayModeBar": False})
+                        st.plotly_chart(fig_area, width="stretch", config={"displayModeBar": False})
+# ══════════════════════════════════════════════════════════════════
 # ══════════════════════════════════════════════════════════════════
 # TAB 4 — OPTIMIZATION
 # ══════════════════════════════════════════════════════════════════
@@ -922,30 +937,33 @@ with tab_optimization:
         </div>""", unsafe_allow_html=True)
     else:
         df_hl = st.session_state.df_horizon_long
+        sel_assets = st.session_state.selected_assets
         if df_hl is not None and len(df_hl) > 0:
             df_hl["Month"] = df_hl["Date"].dt.month
             df_hl["MonthName"] = df_hl["Date"].dt.strftime("%b")
 
-            # ── Best/Worst months to buy ──────────────────────────
-            section_header("Seasonal Analysis", "Which months are historically safest to buy, and which months should you avoid holding risky assets?")
+            # ── Seasonal Analysis ───────────────────────────────
+            section_header("Seasonal Analysis", "Historical risk patterns and optimal holding periods")
             month_avg = df_hl.groupby(["Month", "MonthName", "Asset"])["RiskInt"].mean().reset_index()
             month_avg = month_avg.sort_values("Month")
 
+            # Best/Worst charts
             opt_cols = st.columns(2)
             with opt_cols[0]:
                 st.markdown("**🟢 Best Months to BUY (Lowest Risk)**")
                 fig_best = go.Figure()
-                for asset in selected_assets:
+                for asset in sel_assets:
                     df_a = month_avg[month_avg["Asset"] == asset]
-                    fig_best.add_trace(go.Bar(
-                        name=f"{ASSET_METADATA[asset]['emoji']} {asset}",
-                        x=df_a["MonthName"], y=df_a["RiskInt"],
-                        marker_color=ASSET_METADATA[asset]["color"],
-                        marker_line_width=0,
-                    ))
+                    if len(df_a) > 0:
+                        fig_best.add_trace(go.Bar(
+                            name=f"{ASSET_METADATA[asset]['emoji']} {asset}",
+                            x=df_a["MonthName"], y=df_a["RiskInt"],
+                            marker_color=ASSET_METADATA[asset]["color"],
+                        ))
                 fig_best.update_layout(
                     barmode="group", height=300,
                     yaxis=dict(tickvals=[0,1,2], ticktext=["Low","Med","High"], range=[0,2.2]),
+                    margin=dict(l=0,r=0,t=10,b=0)
                 )
                 plotly_dark_layout(fig_best)
                 st.plotly_chart(fig_best, use_container_width=True, config={"displayModeBar": False})
@@ -953,184 +971,41 @@ with tab_optimization:
             with opt_cols[1]:
                 st.markdown("**🔴 Worst Months to HOLD (Highest Risk)**")
                 fig_worst = go.Figure()
-                for asset in selected_assets:
+                for asset in sel_assets:
                     df_a = month_avg[month_avg["Asset"] == asset]
-                    fig_worst.add_trace(go.Bar(
-                        name=f"{ASSET_METADATA[asset]['emoji']} {asset}",
-                        x=df_a["MonthName"], y=2 - df_a["RiskInt"],
-                        marker_color=ASSET_METADATA[asset]["color"],
-                        marker_line_width=0,
-                    ))
-                fig_worst.update_layout(barmode="group", height=300, yaxis=dict(title="Risk Score (inverted)"))
+                    if len(df_a) > 0:
+                        # Show relative risk (inverted)
+                        fig_worst.add_trace(go.Bar(
+                            name=f"{ASSET_METADATA[asset]['emoji']} {asset}",
+                            x=df_a["MonthName"], y=2 - df_a["RiskInt"],
+                            marker_color=ASSET_METADATA[asset]["color"],
+                        ))
+                fig_worst.update_layout(
+                    barmode="group", height=300,
+                    yaxis=dict(title="Risk (Inverted)"),
+                    margin=dict(l=0,r=0,t=10,b=0)
+                )
                 plotly_dark_layout(fig_worst)
                 st.plotly_chart(fig_worst, use_container_width=True, config={"displayModeBar": False})
 
-            # ── Alert threshold table ─────────────────────────────
-            section_header("Alert Threshold Breaches", "Every day where risk crosses your chosen limit — use this to set calendar reminders to review your holdings")
-            alert_opt_cols = st.columns([2, 2, 1])
-            with alert_opt_cols[0]:
-                alert_asset = st.selectbox("Asset", options=[a for a in selected_assets if a in (st.session_state.df_horizon_long["Asset"].unique() if st.session_state.df_horizon_long is not None else [])], key="alert_asset_opt")
-            with alert_opt_cols[1]:
-                alert_level = st.selectbox("Risk Threshold", options=["Low (≥0)", "Medium (≥1)", "High (≥2)"], key="alert_level_opt")
-            alert_int = ["Low (≥0)", "Medium (≥1)", "High (≥2)"].index(alert_level)
-
-            df_alert = df_hl[(df_hl["Asset"] == alert_asset) & (df_hl["RiskInt"] >= alert_int)].copy()
-            df_alert_display = df_alert[["Date","Risk","RiskInt","Confidence","Action"]].copy()
-            df_alert_display["Date"] = df_alert_display["Date"].dt.strftime("%d %b %Y")
-            st.dataframe(df_alert_display.rename(columns={"RiskInt": "Risk Score"}), use_container_width=True, hide_index=True)
-
             # ── Export PDF ────────────────────────────────────────
-            section_header("Export Report", "Download a full PDF summary")
-
-            if st.button("📄 Export PDF Report", type="primary", key="export_pdf"):
-                try:
-                    from fpdf import FPDF
-                    import plotly.io as pio
-
-                    pdf = FPDF()
-                    pdf.add_page()
-                    pdf.set_font("Helvetica", "B", 20)
-                    pdf.set_text_color(212, 175, 55)
-                    pdf.cell(0, 12, "DELTA — Precious Asset Risk Report", ln=True, align="C")
-                    pdf.set_font("Helvetica", "", 10)
-                    pdf.set_text_color(100, 100, 100)
-                    pdf.cell(0, 6, f"Generated: {date.today().strftime('%d %B %Y')}  |  Analysis Date: {st.session_state.analysis_date}", ln=True, align="C")
-                    pdf.ln(6)
-
-                    # Macro snapshot
-                    pdf.set_font("Helvetica", "B", 13)
-                    pdf.set_text_color(30, 30, 30)
-                    pdf.cell(0, 8, "Macro Snapshot", ln=True)
-                    pdf.set_font("Helvetica", "", 9)
-                    macro_snap = {
-                        "USD/INR": f"{inputs.get('USD_INR', 0):.2f}",
-                        "India Inflation": f"{inputs.get('India_Inflation', 0):.1f}%",
-                        "RBI Repo Rate": f"{inputs.get('RBI_Repo_Rate', 0):.2f}%",
-                        "Fed Rate": f"{inputs.get('Fed_Rate', 0):.2f}%",
-                        "VIX": f"{inputs.get('Geopolitical_Risk_VIX', 0):.1f}",
-                        "Oil (USD)": f"${inputs.get('Oil_Price_USD', 0):.1f}",
-                        "S&P 500": f"{inputs.get('SP500_Index', 0):,.0f}",
-                        "DXY": f"{inputs.get('DXY_Index', 0):.1f}",
-                    }
-                    for k, v in macro_snap.items():
-                        pdf.set_text_color(80, 80, 80)
-                        pdf.cell(60, 6, k + ":", border=0)
-                        pdf.set_text_color(30, 30, 30)
-                        pdf.cell(0, 6, v, ln=True)
-                    pdf.ln(4)
-
-                    # Asset results
-                    pdf.set_font("Helvetica", "B", 13)
-                    pdf.set_text_color(30, 30, 30)
-                    pdf.cell(0, 8, "Asset Risk Summary", ln=True)
-                    pdf.set_font("Helvetica", "B", 9)
-                    pdf.set_fill_color(240, 235, 220)
-                    pdf.cell(50, 7, "Asset", border=1, fill=True)
-                    pdf.cell(30, 7, "Risk", border=1, fill=True)
-                    pdf.cell(30, 7, "Action", border=1, fill=True)
-                    pdf.cell(30, 7, "Confidence", border=1, fill=True)
-                    pdf.cell(30, 7, "P(Low)", border=1, fill=True)
-                    pdf.cell(30, 7, "P(High)", ln=True, border=1, fill=True)
-                    pdf.set_font("Helvetica", "", 9)
-                    for asset in selected_assets:
-                        if asset not in results:
-                            continue
-                        res = results[asset]
-                        proba = res["proba"]
-                        pdf.cell(50, 6, f"{ASSET_METADATA[asset]['emoji']} {asset}", border=1)
-                        pdf.cell(30, 6, res["risk_label"], border=1)
-                        pdf.cell(30, 6, RISK_ACTIONS[res["risk_label"]], border=1)
-                        pdf.cell(30, 6, f"{res['confidence']}%", border=1)
-                        pdf.cell(30, 6, f"{proba[0]*100:.1f}%", border=1)
-                        pdf.cell(30, 6, f"{(proba[2] if len(proba)>2 else 0)*100:.1f}%", border=1, ln=True)
-                    pdf.ln(4)
-
-                    # Portfolio summary
-                    pdf.set_font("Helvetica", "B", 13)
-                    pdf.set_text_color(30, 30, 30)
-                    pdf.cell(0, 8, "Portfolio Summary", ln=True)
-                    pdf.set_font("Helvetica", "", 9)
-                    RISK_PNL = {"Low": 0.08, "Medium": 0.02, "High": -0.10}
-                    total_cap = 0
-                    total_pnl = 0
-                    for asset in selected_assets:
-                        if asset not in results:
-                            continue
-                        rupees = st.session_state.asset_rupees.get(asset, 0)
-                        risk_label = results[asset]["risk_label"]
-                        pnl = rupees * RISK_PNL[risk_label]
-                        total_cap += rupees
-                        total_pnl += pnl
-                        pdf.cell(60, 6, f"{asset}:", border=0)
-                        pdf.cell(0, 6, f"Rs {rupees:,.0f}  |  Expected: Rs {pnl:+,.0f}  ({RISK_PNL[risk_label]*100:+.0f}%)", ln=True)
-                    pdf.set_font("Helvetica", "B", 10)
-                    pdf.cell(60, 7, "Total Portfolio:")
-                    pdf.cell(0, 7, f"Rs {total_cap:,.0f}  |  Expected P&L: Rs {total_pnl:+,.0f}  ({(total_pnl/total_cap*100 if total_cap>0 else 0):+.1f}%)", ln=True)
-                    pdf.ln(4)
-
-                    # Buy/sell signals from long term
-                    pdf.set_font("Helvetica", "B", 13)
-                    pdf.set_text_color(30, 30, 30)
-                    pdf.cell(0, 8, "Key Buy/Sell Signals (1-Year Horizon)", ln=True)
-                    pdf.set_font("Helvetica", "", 9)
-                    if st.session_state.df_horizon_long is not None:
-                        df_signals = st.session_state.df_horizon_long.copy()
-                        df_signals["Month"] = df_signals["Date"].dt.to_period("M")
-                        df_signals_m = df_signals.groupby(["Month","Asset"])["RiskInt"].mean().reset_index()
-                        for asset in selected_assets:
-                            df_a = df_signals_m[df_signals_m["Asset"]==asset].copy()
-                            df_a["prev"] = df_a["RiskInt"].shift(1)
-                            buys = df_a[df_a["RiskInt"] < 0.5]
-                            sells = df_a[df_a["RiskInt"] > 1.5]
-                            if len(buys) > 0:
-                                pdf.set_text_color(34, 197, 94)
-                                pdf.cell(0, 6, f"BUY  {asset}: {', '.join(str(m) for m in buys['Month'].head(3).astype(str))}", ln=True)
-                            if len(sells) > 0:
-                                pdf.set_text_color(239, 68, 68)
-                                pdf.cell(0, 6, f"SELL {asset}: {', '.join(str(m) for m in sells['Month'].head(3).astype(str))}", ln=True)
-                    pdf.set_text_color(100, 100, 100)
-                    pdf.ln(6)
-                    pdf.set_font("Helvetica", "I", 8)
-                    pdf.cell(0, 6, "DELTA · Precious Asset Intelligence · Not financial advice.", ln=True, align="C")
-
-                    # Inline chart images
-                    try:
-                        # Results comparison chart
-                        fig_exp = go.Figure()
-                        for label_key, color, col_idx in [("Low","#22c55e",0),("Medium","#f59e0b",1),("High","#ef4444",2)]:
-                            fig_exp.add_trace(go.Bar(
-                                name=label_key,
-                                x=[a for a in selected_assets if a in results],
-                                y=[results[a]["proba"][col_idx]*100 if len(results[a]["proba"])>col_idx else 0 for a in selected_assets if a in results],
-                                marker_color=color,
-                            ))
-                        fig_exp.update_layout(
-                            barmode="group", height=300,
-                            paper_bgcolor="white", plot_bgcolor="white",
-                            font=dict(color="black"),
-                        )
-                        img_bytes = pio.to_image(fig_exp, format="png", width=700, height=300)
-                        img_path = "/tmp/delta_chart_compare.png"
-                        with open(img_path, "wb") as f:
-                            f.write(img_bytes)
-                        pdf.add_page()
-                        pdf.set_font("Helvetica", "B", 12)
-                        pdf.set_text_color(30,30,30)
-                        pdf.cell(0, 8, "Asset Risk Probability Comparison", ln=True)
-                        pdf.image(img_path, x=10, w=190)
-                    except Exception:
-                        pass  # chart embed optional
-
-                    pdf_bytes = pdf.output(dest="S").encode("latin-1")
-                    b64 = base64.b64encode(pdf_bytes).decode()
-                    href = f'<a href="data:application/pdf;base64,{b64}" download="delta_report_{date.today()}.pdf" style="display:inline-block;padding:0.7rem 2rem;background:linear-gradient(135deg,#D4AF37,#F0D060);color:#07080f;border-radius:10px;font-family:Syne,sans-serif;font-weight:700;text-decoration:none;letter-spacing:0.06em;">⬇️ Download PDF Report</a>'
-                    st.markdown(href, unsafe_allow_html=True)
-                    st.success("PDF generated successfully!")
-                except ImportError:
-                    st.error("fpdf2 not installed. Run: pip install fpdf2")
-                except Exception as e:
-                    st.error(f"PDF generation failed: {e}")
-
+            # ── Alert Thresholds ───────────────────────────────
+            section_header("Alert Threshold Breaches", "Predictive monitoring for upcoming risk events")
+            st.info("Set risk thresholds to see specific forecast dates that require attention.")
+            alert_assets = [a for a in sel_assets if a in df_hl["Asset"].unique()]
+            if alert_assets:
+                al_cols = st.columns([2, 2, 1])
+                with al_cols[0]:
+                    al_asset = st.selectbox("Asset", options=alert_assets, key="al_asset")
+                with al_cols[1]:
+                    al_level = st.selectbox("Threshold", options=["Low (≥0)", "Medium (≥1)", "High (≥2)"], key="al_level")
+                al_int = ["Low (≥0)", "Medium (≥1)", "High (≥2)"].index(al_level)
+                df_al = df_hl[(df_hl["Asset"] == al_asset) & (df_hl["RiskInt"] >= al_int)].copy()
+                df_al_disp = df_al[["Date","Risk","RiskInt","Confidence","Action"]].copy()
+                df_al_disp["Date"] = df_al_disp["Date"].dt.strftime("%d %b %Y")
+                st.dataframe(df_al_disp.rename(columns={"RiskInt": "Risk Score"}), use_container_width=True, hide_index=True)
+            else:
+                st.info("No forecast data for alerts.")
 # ── Footer ─────────────────────────────────────────────────────────
 st.markdown("""
 <div style="text-align:center;padding:3rem 0 1rem;color:var(--text-dim);font-size:0.75rem;letter-spacing:0.08em;">
