@@ -1,4 +1,4 @@
-# main.py  —  Delta · Precious Metals & Gemstone Risk Analyzer
+# main.py  -  Delta · Precious Metals & Gemstone Risk Analyzer
 # Run with:  streamlit run main.py
 
 import streamlit as st
@@ -12,7 +12,8 @@ import io
 import base64
 import tempfile
 import re
-
+import kaleido
+from fpdf import FPDF
 import sys
 sys.path.insert(0, str(Path(__file__).parent))
 
@@ -176,159 +177,16 @@ def get_inr_price(asset: str, inputs: dict) -> float:
     return usd_price * inputs.get("USD_INR", FEATURE_DEFAULTS["USD_INR"])
 
 def clean_text(text: str) -> str:
-    """Remove emojis and non-latin-1 characters for FPDF compatibility."""
-    # Remove emojis using regex or just encode/decode
-    text = text.encode("ascii", "ignore").decode("ascii")
-    return text.strip()
+    replacements = {"\u2013": "-", "\u2014": "-", "\u2019": "'", "\u2018": "'", "\u201c": '"', "\u201d": '"'}
+    for char, rep in replacements.items():
+        text = text.replace(char, rep)
+    return text.encode("latin-1", "ignore").decode("latin-1").strip()
 
 # ══════════════════════════════════════════════════════════════════
 # HAMBURGER DRAWER
 # ══════════════════════════════════════════════════════════════════
 all_assets = list(ASSET_METADATA.keys())
 
-drawer_html = """
-<style>
-.delta-drawer-overlay {
-    display: none;
-    position: fixed;
-    inset: 0;
-    background: rgba(0,0,0,0.6);
-    z-index: 1100;
-    backdrop-filter: blur(2px);
-}
-.delta-drawer-overlay.open { display: block; }
-.delta-drawer-panel {
-    position: fixed;
-    top: 0; left: 0;
-    width: 300px;
-    height: 100vh;
-    background: rgba(10,11,22,0.98);
-    backdrop-filter: blur(30px);
-    -webkit-backdrop-filter: blur(30px);
-    border-right: 1px solid rgba(212,175,55,0.2);
-    box-shadow: 8px 0 40px rgba(0,0,0,0.5), inset -1px 0 0 rgba(255,255,255,0.05);
-    z-index: 1200;
-    transform: translateX(-100%);
-    transition: transform 0.32s cubic-bezier(0.4,0,0.2,1);
-    display: flex;
-    flex-direction: column;
-    overflow-y: auto;
-}
-.delta-drawer-panel.open { transform: translateX(0); }
-.drawer-header {
-    padding: 1.5rem 1.5rem 1rem;
-    border-bottom: 1px solid rgba(255,255,255,0.07);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-}
-.drawer-title {
-    font-family: 'Syne', sans-serif;
-    font-size: 1rem;
-    font-weight: 700;
-    color: #D4AF37;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-}
-.drawer-close {
-    background: rgba(255,255,255,0.06);
-    border: 1px solid rgba(255,255,255,0.1);
-    border-radius: 8px;
-    color: rgba(240,237,232,0.6);
-    cursor: pointer;
-    font-size: 1rem;
-    width: 32px; height: 32px;
-    display: flex; align-items: center; justify-content: center;
-    transition: all 0.2s;
-}
-.drawer-close:hover { background: rgba(212,175,55,0.15); color: #D4AF37; border-color: rgba(212,175,55,0.3); }
-.drawer-section {
-    padding: 1.2rem 1.5rem 0.5rem;
-}
-.drawer-section-label {
-    font-size: 0.62rem;
-    text-transform: uppercase;
-    letter-spacing: 0.14em;
-    color: rgba(240,237,232,0.3);
-    font-family: 'Syne', sans-serif;
-    margin-bottom: 0.75rem;
-}
-.hamburger-fab {
-    position: fixed;
-    top: 1rem;
-    left: 1rem;
-    z-index: 1050;
-    background: rgba(10,11,22,0.9);
-    border: 1px solid rgba(212,175,55,0.3);
-    border-radius: 10px;
-    width: 42px; height: 42px;
-    display: flex; align-items: center; justify-content: center;
-    cursor: pointer;
-    backdrop-filter: blur(12px);
-    box-shadow: 0 4px 20px rgba(0,0,0,0.4);
-    transition: all 0.2s;
-    color: #D4AF37;
-    font-size: 1.1rem;
-}
-.hamburger-fab:hover { border-color: rgba(212,175,55,0.6); box-shadow: 0 4px 24px rgba(212,175,55,0.2); }
-</style>
-
-<div class="hamburger-fab" onclick="toggleDrawer()" title="Menu">☰</div>
-<div class="delta-drawer-overlay" id="drawerOverlay" onclick="closeDrawer()"></div>
-<div class="delta-drawer-panel" id="drawerPanel">
-    <div class="drawer-header">
-        <span class="drawer-title">⬡ Delta Menu</span>
-        <button class="drawer-close" onclick="closeDrawer()">✕</button>
-    </div>
-    <div class="drawer-section">
-        <div class="drawer-section-label">🌙 Theme</div>
-        <label style="display:flex;align-items:center;gap:0.75rem;cursor:pointer;color:rgba(240,237,232,0.7);font-size:0.85rem;">
-            <div style="position:relative;width:44px;height:24px;">
-                <input type="checkbox" id="themeToggle" style="opacity:0;width:0;height:0;" onchange="toggleTheme(this)">
-                <span id="themeTrack" style="position:absolute;inset:0;border-radius:12px;background:rgba(212,175,55,0.2);border:1px solid rgba(212,175,55,0.3);transition:0.3s;"></span>
-                <span id="themeThumb" style="position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#D4AF37;transition:0.3s;"></span>
-            </div>
-            <span id="themeLabel">Dark Mode</span>
-        </label>
-    </div>
-    <div class="drawer-section" style="border-top:1px solid rgba(255,255,255,0.05);margin-top:0.5rem;padding-top:1.2rem;">
-        <div class="drawer-section-label">💎 Asset Selection</div>
-        <div id="assetCheckboxes" style="display:flex;flex-direction:column;gap:0.5rem;">
-        </div>
-    </div>
-    <div class="drawer-section" style="border-top:1px solid rgba(255,255,255,0.05);margin-top:0.75rem;padding-top:1.2rem;flex:1;">
-        <div class="drawer-section-label">📊 Portfolio Volume</div>
-        <div id="volumeInputs" style="display:flex;flex-direction:column;gap:0.85rem;"></div>
-    </div>
-    <div style="padding:1rem 1.5rem 1.5rem;border-top:1px solid rgba(255,255,255,0.05);">
-        <button onclick="applyDrawerSettings()" style="width:100%;padding:0.7rem;background:linear-gradient(135deg,#D4AF37,#F0D060);border:none;border-radius:10px;font-family:'Syne',sans-serif;font-weight:700;font-size:0.85rem;color:#07080f;cursor:pointer;letter-spacing:0.06em;">APPLY SETTINGS</button>
-    </div>
-</div>
-
-<script>
-function toggleDrawer() {
-    document.getElementById('drawerPanel').classList.toggle('open');
-    document.getElementById('drawerOverlay').classList.toggle('open');
-}
-function closeDrawer() {
-    document.getElementById('drawerPanel').classList.remove('open');
-    document.getElementById('drawerOverlay').classList.remove('open');
-}
-function toggleTheme(cb) {
-    document.getElementById('themeLabel').textContent = cb.checked ? 'Light Mode' : 'Dark Mode';
-    document.getElementById('themeThumb').style.left = cb.checked ? '23px' : '3px';
-}
-function applyDrawerSettings() {
-    closeDrawer();
-    window.parent.document.dispatchEvent(new Event('click'));
-}
-</script>
-"""
-st.markdown(drawer_html, unsafe_allow_html=True)
-
-# ══════════════════════════════════════════════════════════════════
-# NAVBAR
-# ══════════════════════════════════════════════════════════════════
 st.markdown("""
 <div class="delta-navbar" style="padding-left:4rem;">
     <div class="delta-logo">
@@ -343,7 +201,6 @@ st.markdown("""
     </div>
 </div>
 """, unsafe_allow_html=True)
-
 # ══════════════════════════════════════════════════════════════════
 # ASSET + VOLUME SELECTORS (in-page, above tabs)
 # ══════════════════════════════════════════════════════════════════
@@ -401,7 +258,7 @@ tab_macros, tab_results, tab_forecast, tab_optimization = st.tabs([
 ])
 
 # ══════════════════════════════════════════════════════════════════
-# TAB 1 — MACROS
+# TAB 1 - MACROS
 # ══════════════════════════════════════════════════════════════════
 with tab_macros:
     section_header("Macro Parameters", "Edit inputs and apply scenario presets")
@@ -524,10 +381,10 @@ with tab_macros:
         progress_bar.empty()
         st.session_state.results = results
         st.session_state.results_ready = True
-        st.success("✅ Analysis complete — view Results, Forecast & Optimization tabs.")
+        st.success("✅ Analysis complete - view Results, Forecast & Optimization tabs.")
 
 # ══════════════════════════════════════════════════════════════════
-# TAB 2 — RESULTS
+# TAB 2 - RESULTS
 # ══════════════════════════════════════════════════════════════════
 with tab_results:
     if not st.session_state.results_ready:
@@ -724,7 +581,7 @@ with tab_results:
             st.plotly_chart(fig_pie, width="stretch", config={"displayModeBar": False})
 
 # ══════════════════════════════════════════════════════════════════
-# TAB 3 — FORECAST
+# TAB 3 - FORECAST
 # ══════════════════════════════════════════════════════════════════
 with tab_forecast:
     if not st.session_state.results_ready:
@@ -763,7 +620,7 @@ with tab_forecast:
                     height=380,
                     yaxis=dict(title="Price (₹)", tickprefix="₹"),
                     xaxis_title="Date",
-                    title="Projected Price (₹) — Next 30 Days",
+                    title="Projected Price (₹) - Next 30 Days",
                 )
                 plotly_dark_layout(fig_st)
                 st.plotly_chart(fig_st, width="stretch", config={"displayModeBar": False})
@@ -821,7 +678,7 @@ with tab_forecast:
         with sub_long:
             df_hl = st.session_state.df_horizon_long
             if df_hl is not None and len(df_hl) > 0:
-                section_header("Long-Term Forecast", "Month-by-month outlook for the next year — when is the best time to buy or sell each asset?")
+                section_header("Long-Term Forecast", "Month-by-month outlook for the next year - when is the best time to buy or sell each asset?")
 
                 # Monthly aggregation
                 df_hl["Month"] = df_hl["Date"].dt.to_period("M")
@@ -851,8 +708,8 @@ with tab_forecast:
                         fig_lt.add_trace(go.Scatter(
                             x=buys["MonthStr"], y=buys["RiskInt"],
                             mode="markers", marker=dict(symbol="triangle-up", size=14, color="#22c55e"),
-                            name=f"BUY — {asset}", showlegend=False,
-                            hovertemplate=f"BUY signal — {asset}<extra></extra>",
+                            name=f"BUY - {asset}", showlegend=False,
+                            hovertemplate=f"BUY signal - {asset}<extra></extra>",
                         ))
                     # SELL markers: transitions to High (2)
                     sells = df_a[(df_a["RiskInt"] > 1.5) & (df_a["prev_risk"] <= 1.5)]
@@ -860,8 +717,8 @@ with tab_forecast:
                         fig_lt.add_trace(go.Scatter(
                             x=sells["MonthStr"], y=sells["RiskInt"],
                             mode="markers", marker=dict(symbol="triangle-down", size=14, color="#ef4444"),
-                            name=f"SELL — {asset}", showlegend=False,
-                            hovertemplate=f"SELL signal — {asset}<extra></extra>",
+                            name=f"SELL - {asset}", showlegend=False,
+                            hovertemplate=f"SELL signal - {asset}<extra></extra>",
                         ))
 
                 fig_lt.update_layout(
@@ -896,7 +753,7 @@ with tab_forecast:
                             ))
                             fig_price.update_layout(
                                 height=240,
-                                title=f"Projected Price — {primary} (₹)",
+                                title=f"Projected Price - {primary} (₹)",
                                 yaxis=dict(tickprefix="₹", title="Price (₹)"),
                                 xaxis_title="Month",
                             )
@@ -906,14 +763,14 @@ with tab_forecast:
                         # Probability stack
                         fig_area = go.Figure()
                         for col, label, colour in [
-                            ("Proba_High", "🔴 High Risk — consider selling or reducing exposure", "#ef4444"),
-                            ("Proba_Med",  "🟡 Medium Risk — hold and watch closely", "#f59e0b"),
-                            ("Proba_Low",  "🟢 Low Risk — safe to hold or buy more", "#22c55e"),
+                            ("Proba_High", "🔴 High Risk - consider selling or reducing exposure", "#ef4444"),
+                            ("Proba_Med",  "🟡 Medium Risk - hold and watch closely", "#f59e0b"),
+                            ("Proba_Low",  "🟢 Low Risk - safe to hold or buy more", "#22c55e"),
                         ]:
                             fig_area.add_trace(go.Scatter(
                                 x=df_p["MonthStr"], y=df_p[col] * 100,
                                 stackgroup="one", name=label, line_color=colour,
-                                hovertemplate=f"{label.split('—')[0].strip()}: %{{y:.1f}}%<extra></extra>",
+                                hovertemplate=f"{label.split('-')[0].strip()}: %{{y:.1f}}%<extra></extra>",
                             ))
                         fig_area.update_layout(
                             height=280,
@@ -925,7 +782,7 @@ with tab_forecast:
                         st.plotly_chart(fig_area, width="stretch", config={"displayModeBar": False})
 # ══════════════════════════════════════════════════════════════════
 # ══════════════════════════════════════════════════════════════════
-# TAB 4 — OPTIMIZATION
+# TAB 4 - OPTIMIZATION
 # ══════════════════════════════════════════════════════════════════
 with tab_optimization:
     if not st.session_state.results_ready:
@@ -988,24 +845,291 @@ with tab_optimization:
                 plotly_dark_layout(fig_worst)
                 st.plotly_chart(fig_worst, use_container_width=True, config={"displayModeBar": False})
 
+            # ── AI Portfolio Recommendations ──────────────────────
+            section_header("AI Portfolio Recommendations", "Data-driven suggestions based on your forecast")
+            if df_hl is not None and len(df_hl) > 0:
+                month_risk = df_hl.groupby("Asset")["RiskInt"].mean()
+                best_asset = month_risk.idxmin()
+                worst_asset = month_risk.idxmax()
+                rec_cols = st.columns(3)
+                with rec_cols[0]:
+                    st.markdown(f"""<div class="glass-card glass-card-gold">
+                        <div style="font-size:0.7rem;color:var(--text-dim);font-family:'Syne',sans-serif;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:0.5rem;">Best Buy Right Now</div>
+                        <div style="font-size:1.8rem;">{ASSET_METADATA[best_asset]['emoji']}</div>
+                        <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:1.1rem;color:#22c55e;margin-top:0.3rem;">{best_asset}</div>
+                        <div style="font-size:0.78rem;color:var(--text-secondary);margin-top:0.3rem;">Lowest average risk over forecast period</div>
+                    </div>""", unsafe_allow_html=True)
+                with rec_cols[1]:
+                    st.markdown(f"""<div class="glass-card" style="border-color:rgba(239,68,68,0.3);">
+                        <div style="font-size:0.7rem;color:var(--text-dim);font-family:'Syne',sans-serif;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:0.5rem;">Reduce Exposure</div>
+                        <div style="font-size:1.8rem;">{ASSET_METADATA[worst_asset]['emoji']}</div>
+                        <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:1.1rem;color:#ef4444;margin-top:0.3rem;">{worst_asset}</div>
+                        <div style="font-size:0.78rem;color:var(--text-secondary);margin-top:0.3rem;">Highest average risk over forecast period</div>
+                    </div>""", unsafe_allow_html=True)
+                with rec_cols[2]:
+                    high_risk_assets = [a for a in sel_assets if month_risk.get(a, 0) > 1.2]
+                    rebal_text = f"Shift weight from {', '.join(high_risk_assets)} to {best_asset}" if high_risk_assets else "Portfolio looks balanced"
+                    st.markdown(f"""<div class="glass-card">
+                        <div style="font-size:0.7rem;color:var(--text-dim);font-family:'Syne',sans-serif;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:0.5rem;">Rebalance Signal</div>
+                        <div style="font-size:1.8rem;">⚖️</div>
+                        <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:0.9rem;color:#f59e0b;margin-top:0.3rem;">{rebal_text}</div>
+                    </div>""", unsafe_allow_html=True)
+
+                # Risk day counts
+                st.markdown("<br>", unsafe_allow_html=True)
+                section_header("Forecast Risk Summary", "How many days each asset spends in each risk zone")
+                risk_summary_rows = []
+                for asset in sel_assets:
+                    df_a = df_hl[df_hl["Asset"] == asset]
+                    total = len(df_a)
+                    low_days = len(df_a[df_a["RiskInt"] == 0])
+                    med_days = len(df_a[df_a["RiskInt"] == 1])
+                    high_days = len(df_a[df_a["RiskInt"] == 2])
+                    risk_summary_rows.append({
+                        "Asset": f"{ASSET_METADATA[asset]['emoji']} {asset}",
+                        "🟢 Low Days": low_days,
+                        "🟡 Medium Days": med_days,
+                        "🔴 High Days": high_days,
+                        "Recommendation": "BUY" if low_days > med_days + high_days else ("HOLD" if med_days >= high_days else "SELL"),
+                    })
+                st.dataframe(pd.DataFrame(risk_summary_rows), use_container_width=True, hide_index=True)
+
             # ── Export PDF ────────────────────────────────────────
-            # ── Alert Thresholds ───────────────────────────────
-            section_header("Alert Threshold Breaches", "Predictive monitoring for upcoming risk events")
-            st.info("Set risk thresholds to see specific forecast dates that require attention.")
-            alert_assets = [a for a in sel_assets if a in df_hl["Asset"].unique()]
-            if alert_assets:
-                al_cols = st.columns([2, 2, 1])
-                with al_cols[0]:
-                    al_asset = st.selectbox("Asset", options=alert_assets, key="al_asset")
-                with al_cols[1]:
-                    al_level = st.selectbox("Threshold", options=["Low (≥0)", "Medium (≥1)", "High (≥2)"], key="al_level")
-                al_int = ["Low (≥0)", "Medium (≥1)", "High (≥2)"].index(al_level)
-                df_al = df_hl[(df_hl["Asset"] == al_asset) & (df_hl["RiskInt"] >= al_int)].copy()
-                df_al_disp = df_al[["Date","Risk","RiskInt","Confidence","Action"]].copy()
-                df_al_disp["Date"] = df_al_disp["Date"].dt.strftime("%d %b %Y")
-                st.dataframe(df_al_disp.rename(columns={"RiskInt": "Risk Score"}), use_container_width=True, hide_index=True)
-            else:
-                st.info("No forecast data for alerts.")
+            section_header("Export Report", "Download the full analysis as a PDF")
+            if st.button("📄 Export Full Report as PDF", type="primary", use_container_width=False, key="export_pdf"):
+                if not st.session_state.results_ready:
+                    st.warning("Run analysis first.")
+                else:
+                    with st.spinner("Generating PDF..."):
+                        import plotly.io as pio
+                        import tempfile, os
+                        from fpdf import FPDF
+
+                        tmp_dir = tempfile.mkdtemp()
+
+                        # ── Generate chart images ──
+                        def save_chart(fig, name):
+                            path = os.path.join(tmp_dir, f"{name}.png")
+                            pio.write_image(fig, path, width=900, height=400, scale=2)
+                            return path
+
+                        # Comparison bar chart
+                        fig_comp2 = go.Figure()
+                        assets_list2 = [a for a in selected_assets if a in results]
+                        for label_key, color, col_idx in [("Low", "#22c55e", 0), ("Medium", "#f59e0b", 1), ("High", "#ef4444", 2)]:
+                            fig_comp2.add_trace(go.Bar(
+                                name=label_key,
+                                x=[f"{ASSET_METADATA[a]['emoji']} {a}" for a in assets_list2],
+                                y=[results[a]["proba"][col_idx] * 100 if len(results[a]["proba"]) > col_idx else 0 for a in assets_list2],
+                                marker_color=color,
+                            ))
+                        fig_comp2.update_layout(barmode="group", height=400, paper_bgcolor="white", plot_bgcolor="white", font=dict(color="black"))
+                        chart_comp_path = save_chart(fig_comp2, "asset_comparison")
+
+                        # Short term forecast chart
+                        df_h2 = st.session_state.df_horizon
+                        fig_st2 = go.Figure()
+                        if df_h2 is not None:
+                            for asset in selected_assets:
+                                df_a2 = df_h2[df_h2["Asset"] == asset]
+                                if "Price_INR" in df_a2.columns:
+                                    fig_st2.add_trace(go.Scatter(
+                                        x=df_a2["Date"], y=df_a2["Price_INR"],
+                                        mode="lines", name=asset,
+                                        line=dict(color=ASSET_METADATA[asset]["color"], width=2),
+                                    ))
+                            fig_st2.update_layout(height=400, paper_bgcolor="white", plot_bgcolor="white", font=dict(color="black"), yaxis=dict(tickprefix="Rs "))
+                        chart_st_path = save_chart(fig_st2, "short_term_forecast")
+
+                        # Long term risk chart
+                        df_hl2 = st.session_state.df_horizon_long
+                        fig_lt2 = go.Figure()
+                        if df_hl2 is not None:
+                            df_hl2["Month"] = df_hl2["Date"].dt.to_period("M")
+                            df_monthly2 = df_hl2.groupby(["Month", "Asset"])["RiskInt"].mean().reset_index()
+                            df_monthly2["MonthStr"] = df_monthly2["Month"].astype(str)
+                            for asset in selected_assets:
+                                df_a3 = df_monthly2[df_monthly2["Asset"] == asset]
+                                fig_lt2.add_trace(go.Scatter(
+                                    x=df_a3["MonthStr"], y=df_a3["RiskInt"],
+                                    mode="lines+markers", name=asset,
+                                    line=dict(color=ASSET_METADATA[asset]["color"], width=2),
+                                ))
+                            fig_lt2.update_layout(height=400, paper_bgcolor="white", plot_bgcolor="white", font=dict(color="black"),
+                                yaxis=dict(tickvals=[0,1,2], ticktext=["Low","Medium","High"]))
+                        chart_lt_path = save_chart(fig_lt2, "long_term_forecast")
+
+                        # ── Build PDF ──
+                        class DeltaPDF(FPDF):
+                            def header(self):
+                                self.set_fill_color(7, 8, 15)
+                                self.rect(0, 0, 210, 22, 'F')
+                                self.set_font("Helvetica", "B", 14)
+                                self.set_text_color(212, 175, 55)
+                                self.set_xy(10, 6)
+                                self.cell(0, 10, "DELTA - Precious Asset Intelligence", ln=False)
+                                self.set_font("Helvetica", "", 8)
+                                self.set_text_color(150, 140, 120)
+                                self.set_xy(10, 14)
+                                self.cell(0, 6, f"Analysis Date: {st.session_state.analysis_date}   |   Not financial advice", ln=False)
+                                self.ln(20)
+
+                            def footer(self):
+                                self.set_y(-12)
+                                self.set_font("Helvetica", "", 8)
+                                self.set_text_color(150, 140, 120)
+                                self.cell(0, 10, f"Page {self.page_no()}", align="C")
+
+                            def section_title(self, title):
+                                self.set_font("Helvetica", "B", 12)
+                                self.set_text_color(212, 175, 55)
+                                self.ln(4)
+                                self.cell(0, 8, title, ln=True)
+                                self.set_draw_color(212, 175, 55)
+                                self.set_line_width(0.4)
+                                self.line(10, self.get_y(), 60, self.get_y())
+                                self.ln(3)
+                                self.set_text_color(30, 30, 30)
+
+                            def key_value_row(self, label, value, highlight=False):
+                                self.set_font("Helvetica", "", 9)
+                                if highlight:
+                                    self.set_fill_color(245, 240, 220)
+                                    self.set_text_color(80, 60, 10)
+                                else:
+                                    self.set_fill_color(250, 250, 250)
+                                    self.set_text_color(50, 50, 50)
+                                self.cell(90, 6, clean_text(str(label)), border=0, fill=True)
+                                self.set_font("Helvetica", "B", 9)
+                                self.cell(90, 6, clean_text(str(value)), border=0, fill=True, ln=True)
+                        
+                        pdf = DeltaPDF()
+                        pdf.set_auto_page_break(auto=True, margin=15)
+                        pdf.set_margins(10, 10, 10)
+                        pdf.add_page()
+
+                        # ── Cover summary ──
+                        pdf.section_title("Executive Summary")
+                        inp = st.session_state.inputs
+                        summary_data = [
+                            ("Analysis Date", str(st.session_state.analysis_date)),
+                            ("Assets Analysed", ", ".join(selected_assets)),
+                            ("USD/INR Rate", f"{inp['USD_INR']}"),
+                            ("Gold Spot Price", f"USD {inp['Gold_Price_USD']}"),
+                            ("VIX Fear Index", f"{inp['Geopolitical_Risk_VIX']}"),
+                            ("Fed Rate", f"{inp['Fed_Rate']}%"),
+                            ("RBI Repo Rate", f"{inp['RBI_Repo_Rate']}%"),
+                            ("Total Portfolio Capital", f"Rs {sum(st.session_state.asset_rupees.get(a,0) for a in selected_assets):,.0f}"),
+                        ]
+                        for label, val in summary_data:
+                            pdf.key_value_row(label, val)
+
+                        # ── Macro Parameters ──
+                        pdf.ln(4)
+                        pdf.section_title("Macro Parameters")
+                        macro_pairs = [(FEATURE_LABELS.get(k, k), str(round(v, 3))) for k, v in inp.items() if k in FEATURE_LABELS]
+                        for label, val in macro_pairs:
+                            pdf.key_value_row(label, val)
+
+                        # ── Asset Risk Results ──
+                        pdf.ln(4)
+                        pdf.section_title("Asset Risk Results")
+                        res2 = st.session_state.results
+                        for asset in selected_assets:
+                            if asset not in res2:
+                                continue
+                            r = res2[asset]
+                            proba = r["proba"]
+                            rupees = st.session_state.asset_rupees.get(asset, 0)
+                            pdf.set_font("Helvetica", "B", 10)
+                            pdf.set_text_color(50, 50, 50)
+                            pdf.cell(0, 7, f"{asset} ({ASSET_METADATA[asset]['symbol']}) - {r['risk_label']} Risk", ln=True)
+                            pdf.key_value_row("Risk Label", r["risk_label"])
+                            pdf.key_value_row("Confidence", f"{r['confidence']}%")
+                            pdf.key_value_row("Low Probability", f"{proba[0]*100:.1f}%")
+                            pdf.key_value_row("Medium Probability", f"{(proba[1] if len(proba)>1 else 0)*100:.1f}%")
+                            pdf.key_value_row("High Probability", f"{(proba[2] if len(proba)>2 else 0)*100:.1f}%")
+                            pdf.key_value_row("Portfolio Value", f"Rs {rupees:,.0f}")
+                            pdf.key_value_row("Action", RISK_ACTIONS[r["risk_label"]])
+                            pdf.ln(2)
+
+                        # ── Portfolio P&L ──
+                        pdf.ln(4)
+                        pdf.section_title("Portfolio P&L Summary")
+                        RISK_PNL2 = {"Low": 0.08, "Medium": 0.02, "High": -0.10}
+                        total_cap2 = sum(st.session_state.asset_rupees.get(a, 0) for a in selected_assets)
+                        total_pnl2 = sum(st.session_state.asset_rupees.get(a, 0) * RISK_PNL2.get(res2[a]["risk_label"], 0) for a in selected_assets if a in res2)
+                        pdf.key_value_row("Total Capital", f"Rs {total_cap2:,.0f}")
+                        pdf.key_value_row("Expected P&L", f"Rs {total_pnl2:+,.0f}")
+                        pdf.key_value_row("Expected Return", f"{(total_pnl2/total_cap2*100) if total_cap2 > 0 else 0:+.1f}%")
+
+                        # ── Charts ──
+                        pdf.add_page()
+                        pdf.section_title("Asset Risk Comparison Chart")
+                        pdf.image(chart_comp_path, x=10, w=190)
+
+                        pdf.add_page()
+                        pdf.section_title("Short-Term Price Forecast (30 Days)")
+                        pdf.image(chart_st_path, x=10, w=190)
+
+                        pdf.add_page()
+                        pdf.section_title("Long-Term Risk Forecast (12 Months)")
+                        pdf.image(chart_lt_path, x=10, w=190)
+
+                        # ── Seasonal Best/Worst ──
+                        if df_hl2 is not None:
+                            pdf.add_page()
+                            pdf.section_title("Seasonal Analysis - Monthly Average Risk")
+                            df_hl2["MonthName"] = df_hl2["Date"].dt.strftime("%b")
+                            df_hl2["Month"] = df_hl2["Date"].dt.month
+                            month_avg2 = df_hl2.groupby(["Month", "MonthName", "Asset"])["RiskInt"].mean().reset_index().sort_values("Month")
+                            for asset in selected_assets:
+                                df_am = month_avg2[month_avg2["Asset"] == asset]
+                                if len(df_am) == 0:
+                                    continue
+                                pdf.set_font("Helvetica", "B", 10)
+                                pdf.set_text_color(50, 50, 50)
+                                pdf.cell(0, 7, f"{asset}", ln=True)
+                                best_m = df_am.loc[df_am["RiskInt"].idxmin(), "MonthName"]
+                                worst_m = df_am.loc[df_am["RiskInt"].idxmax(), "MonthName"]
+                                pdf.key_value_row("Best Month to Buy", best_m)
+                                pdf.key_value_row("Worst Month to Hold", worst_m)
+                                pdf.ln(1)
+
+                        # ── Recommendations ──
+                        if df_hl2 is not None:
+                            pdf.add_page()
+                            pdf.section_title("AI Portfolio Recommendations")
+                            month_risk2 = df_hl2.groupby("Asset")["RiskInt"].mean()
+                            best_a2 = month_risk2.idxmin()
+                            worst_a2 = month_risk2.idxmax()
+                            high_risk2 = [a for a in sel_assets if month_risk2.get(a, 0) > 1.2]
+                            pdf.key_value_row("Best Asset to Buy", best_a2, highlight=True)
+                            pdf.key_value_row("Reduce Exposure In", worst_a2)
+                            pdf.key_value_row("Rebalance Signal", f"Shift from {', '.join(high_risk2)} to {best_a2}" if high_risk2 else "Portfolio balanced")
+                            pdf.ln(4)
+                            pdf.section_title("Forecast Risk Day Counts")
+                            for asset in sel_assets:
+                                df_aa = df_hl2[df_hl2["Asset"] == asset]
+                                total_d = len(df_aa)
+                                low_d = len(df_aa[df_aa["RiskInt"] == 0])
+                                med_d = len(df_aa[df_aa["RiskInt"] == 1])
+                                high_d = len(df_aa[df_aa["RiskInt"] == 2])
+                                pdf.set_font("Helvetica", "B", 9)
+                                pdf.set_text_color(50, 50, 50)
+                                pdf.cell(0, 6, f"{asset}: Low={low_d}d  Medium={med_d}d  High={high_d}d  - {'BUY' if low_d > med_d+high_d else ('HOLD' if med_d >= high_d else 'SELL')}", ln=True)
+
+                        # ── Output ──
+                        pdf_bytes = pdf.output()
+                        st.download_button(
+                            label="⬇️ Download PDF Report",
+                            data=bytes(pdf_bytes),
+                            file_name=f"delta_report_{st.session_state.analysis_date}.pdf",
+                            mime="application/pdf",
+                            key="download_pdf_btn",
+                        )
+                        st.success("PDF ready! Click Download above.")
+
 # ── Footer ─────────────────────────────────────────────────────────
 st.markdown("""
 <div style="text-align:center;padding:3rem 0 1rem;color:var(--text-dim);font-size:0.75rem;letter-spacing:0.08em;">

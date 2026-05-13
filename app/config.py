@@ -49,7 +49,7 @@ ASSET_METADATA = {
         "base_price_usd": 3200,
         "color": "#50C878",
         "category": "Gemstone",
-        "description": "Colombian origin premium commands 30–60% price uplift. Monsoon index affects supply.",
+        "description": "Colombian origin premium commands 30-60% price uplift. Monsoon index affects supply.",
     },
     "Ruby": {
         "symbol": "RUB",
@@ -159,7 +159,7 @@ FEATURE_LABELS = {
     "SP500_Index":                "S&P 500 Index",
     "China_PMI":                  "China Manufacturing PMI",
     "Geopolitical_Risk_VIX":      "VIX (Fear Index)",
-    "Russia_Ukraine_Tension":     "Geopolitical Tension (0–1)",
+    "Russia_Ukraine_Tension":     "Geopolitical Tension (0-1)",
     "Global_Mining_Output_Index": "Global Mining Output Index",
     "Lab_Diamond_Supply_Index":   "Lab Diamond Supply Index",
     "Emerald_Origin_Premium_pct": "Emerald Origin Premium (%)",
