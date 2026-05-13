@@ -34,6 +34,7 @@ Either windows or AWS connect itself
 **Windows (PowerShell):**
 ```
 ssh -i C:\path\to\metals-key.pem ubuntu@YOUR_PUBLIC_IP
+
 ```
 One time - 
 ```
